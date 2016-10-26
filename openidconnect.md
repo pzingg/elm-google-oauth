@@ -104,6 +104,30 @@ https://accounts.google.com/o/oauth2/v2/auth?
  hd=example.com
 ```
 
+### 4. Exchange code for access token and ID token
+
+The request must include the following parameters in the POST body:
+
+* code: The authorization code that is returned from the initial request.
+* client_id: The client ID that you obtain from the API Console, as described in Obtain OAuth 2.0 credentials.
+* client_secret: The client secret that you obtain from the API Console, as described in Obtain OAuth 2.0 credentials.
+* redirect_uri: The URI that you specify in the API Console, as described in Set a redirect URI.
+* grant_type: This field must contain a value of authorization_code, as defined in the OAuth 2.0 specification.
+
+The actual request might look like the following example:
+
+```
+POST /oauth2/v4/token HTTP/1.1
+Host: www.googleapis.com
+Content-Type: application/x-www-form-urlencoded
+
+code=4/P7q7W91a-oMsCeLvIaQm6bTrgtp7&
+client_id=8819981768.apps.googleusercontent.com&
+client_secret={client_secret}&
+redirect_uri=https://oauth2-login-demo.example.com/code&
+grant_type=authorization_code
+```
+
 ## Client secrets
 
 You must create an Elm source file named ClientSecrets.elm in the src

@@ -2,7 +2,6 @@ module View exposing (view)
 
 import Html exposing (Html, text, div, h1, p, a, br, button)
 import Html.Attributes exposing (href)
-import Html.Events exposing (onClick)
 import Model exposing (Model)
 import Types exposing (Page(..))
 import Update exposing (Msg, googleAuthUrl)

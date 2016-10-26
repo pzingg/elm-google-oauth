@@ -4,9 +4,12 @@ import Debug
 import Dict
 import Time exposing (Time)
 import Task
-import Navigation
+import Json.Encode as JE
+import Http
 import Erl
-import Types exposing (Page(..))
+import RemoteData exposing (WebData)
+import Types exposing (Page(..), OAuthToken)
+import Decoders exposing (decodeOAuthToken)
 import Model exposing (..)
 import Tokens exposing (makeToken)
 import ClientSecrets exposing (redirectURI, clientID, clientSecret, googleDomain)
@@ -17,6 +20,8 @@ type Msg
     | LogOut
     | SetActivePage Page
     | SetCSRFToken Time
+    | ExchangeOAuthToken String
+    | OAuthTokenResponse (WebData OAuthToken)
 
 
 init : (Model, Cmd Msg)
@@ -40,7 +45,7 @@ googleAuthQuery model =
     , ( "response_type", "code" )
     , ( "scope", "openid email" )
     , ( "redirect_uri", redirectURI )
-    , ( "state", "security_token=" ++ model.csrfToken )
+    , ( "state", "csrf " ++ model.csrfToken )
     , ( "hd", googleDomain )
     ]
 
@@ -53,11 +58,41 @@ googleAuthUrl model =
         Erl.toString { erl | query = Dict.fromList (googleAuthQuery model) }
 
 
+googleExchangeTokenBody : String -> Http.Body
+googleExchangeTokenBody code =
+    let
+        s = "code=" ++ code ++
+            "&client_id=" ++ clientID ++
+            "&client_secret=" ++ clientSecret ++
+            "&redirect_uri=" ++ redirectURI ++
+            "&grant_type=authorization_code"
+    in
+        Debug.log "body" <| Http.string s
+
+googleExchangeTokenUrl : String
+googleExchangeTokenUrl = "https://www.googleapis.com/oauth2/v4/token"
+
+
+-- Http.post : Decoder value -> String -> Body -> Task Error value
+-- RemoteData.asCmd : Task e a -> Cmd (RemoteData e a)
+exchangeToken : String -> Http.Body -> Cmd Msg
+exchangeToken url body =
+    Http.post decodeOAuthToken url body
+        |> RemoteData.asCmd
+        |> Cmd.map OAuthTokenResponse
+
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         SetCSRFToken time ->
             { model | csrfToken = makeToken time } ! []
+
+        ExchangeOAuthToken code ->
+            ( model, exchangeToken googleExchangeTokenUrl (googleExchangeTokenBody code))
+
+        OAuthTokenResponse response ->
+            ( { model | oauthToken = Debug.log "oauth" response }, Cmd.none )
 
         SetActivePage page ->
             case page of
