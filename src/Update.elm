@@ -8,12 +8,13 @@ import Task exposing (Task)
 import Http
 import Json.Decode as JD
 import Erl
-import RemoteData exposing (WebData)
-import Types exposing (Page(..), OAuthToken)
-import Decoders exposing (decodeOAuthToken)
+import RemoteData exposing (WebData, RemoteData(..))
+import Types exposing (Page(..), OAuthToken, UserInfo)
+import Decoders exposing (decodeOAuthToken, decodeUserInfo)
 import Model exposing (..)
 import Tokens exposing (makeToken)
 import ClientSecrets exposing (redirectURI, clientID, clientSecret, googleDomain)
+import Google
 
 
 -- MESSAGES
@@ -26,6 +27,7 @@ type Msg
     | SetCSRFToken Time
     | ExchangeOAuthToken String
     | OAuthTokenResponse (WebData OAuthToken)
+    | UserInfoResponse (WebData UserInfo)
 
 
 -- HELPERS
@@ -40,7 +42,7 @@ googleAuthQuery : Model -> List (String, String)
 googleAuthQuery model =
     [ ( "client_id", clientID )
     , ( "response_type", "code" )
-    , ( "scope", "openid email" )
+    , ( "scope", "openid email profile" )
     , ( "redirect_uri", redirectURI )
     , ( "state", "csrf " ++ model.csrfToken )
     , ( "hd", googleDomain )
@@ -50,7 +52,7 @@ googleAuthQuery model =
 googleAuthUrl : Model -> String
 googleAuthUrl model =
     let
-        erl = Erl.parse "https://accounts.google.com/o/oauth2/v2/auth"
+        erl = Erl.parse Google.authorizationEndpoint
     in
         Erl.toString { erl | query = Dict.fromList (googleAuthQuery model) }
 
@@ -69,10 +71,6 @@ googleExchangeTokenBody code =
         Http.string s
 
 
-googleExchangeTokenUrl : String
-googleExchangeTokenUrl = "https://www.googleapis.com/oauth2/v4/token"
-
-
 postFormUrlEncoded : JD.Decoder value -> String -> Http.Body -> Task.Task Http.Error value
 postFormUrlEncoded decoder url body =
   let request =
@@ -85,6 +83,20 @@ postFormUrlEncoded decoder url body =
         ]
     , url = url
     , body = body
+    }
+
+  in
+      Http.fromJson decoder (Http.send Http.defaultSettings request)
+
+
+getAuthenticated : JD.Decoder value -> String -> String -> Task.Task Http.Error value
+getAuthenticated decoder url accessToken =
+  let request =
+    { verb = "GET"
+    , headers =
+        [ ("Authorization", "Bearer: " ++ accessToken) ]
+    , url = url
+    , body = Http.empty
     }
 
   in
@@ -106,6 +118,17 @@ exchangeToken url body =
         |> Cmd.map OAuthTokenResponse
 
 
+getUserInfo : Model -> Cmd Msg
+getUserInfo model =
+    case model.oauthToken of
+        Success token ->
+            getAuthenticated decodeUserInfo Google.userinfoEndpoint token.accessToken
+                |> RemoteData.asCmd
+                |> Cmd.map UserInfoResponse
+
+        _ ->
+            Cmd.none
+
 -- INIT
 
 
@@ -124,13 +147,20 @@ update msg model =
             { model | csrfToken = makeToken time } ! []
 
         ExchangeOAuthToken code ->
-            ( model, exchangeToken googleExchangeTokenUrl (googleExchangeTokenBody code))
+            ( model, exchangeToken Google.tokenEndpoint (googleExchangeTokenBody code))
 
         OAuthTokenResponse response ->
             let
                 token = Debug.log "oauth" response
+                ( newModel, _ ) = update (SetActivePage Login) { model | oauthToken = token }
             in
-                update (SetActivePage Login) { model | oauthToken = token }
+                ( newModel, getUserInfo newModel )
+
+        UserInfoResponse response ->
+            let
+                userInfo = Debug.log "userinfo" response
+            in
+                { model | userInfo = userInfo } ! []
 
         SetActivePage page ->
             case page of

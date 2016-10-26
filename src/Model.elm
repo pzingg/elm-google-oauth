@@ -1,7 +1,7 @@
 module Model exposing (Model, emptyModel)
 
 import RemoteData exposing (WebData, RemoteData(..))
-import Types exposing (Page(..), OAuthToken)
+import Types exposing (Page(..), OAuthToken, UserInfo)
 
 
 type alias Model =
@@ -9,6 +9,7 @@ type alias Model =
     , pageTitle : String
     , csrfToken : String
     , oauthToken : WebData OAuthToken
+    , userInfo : WebData UserInfo
     }
 
 
@@ -18,4 +19,5 @@ emptyModel =
     , pageTitle = "Welcome!"
     , csrfToken = ""
     , oauthToken = NotAsked
+    , userInfo = NotAsked
     }

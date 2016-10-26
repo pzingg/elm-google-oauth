@@ -157,6 +157,25 @@ scope=openid%20email%20profile
 
 Add your access token to the authorization header and make an HTTPS GET request to the userinfo endpoint, which you should retrieve from the Discovery document using the key userinfo_endpoint. The response includes information about the user, as described in people.getOpenIdConnect. Users may choose to supply or withhold certain fields, so you might not get information for every field to which your scopes request access.
 
+If successful, this method returns a response body with the following structure:
+
+```
+{
+  "kind": "plus#personOpenIdConnect",
+  "gender": string,
+  "sub": string,
+  "name": string,
+  "given_name": string,
+  "family_name": string,
+  "profile": string,
+  "picture": string,
+  "email": string,
+  "email_verified": "true",
+  "locale": string,
+  "hd": string
+}
+```
+
 ## Client secrets
 
 You must create an Elm source file named ClientSecrets.elm in the src
