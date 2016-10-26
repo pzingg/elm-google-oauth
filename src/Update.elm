@@ -1,11 +1,12 @@
 module Update exposing (Msg(..), init, update, googleAuthUrl)
 
 import Debug
+import String
 import Dict
 import Time exposing (Time)
-import Task
-import Json.Encode as JE
+import Task exposing (Task)
 import Http
+import Json.Decode as JD
 import Erl
 import RemoteData exposing (WebData)
 import Types exposing (Page(..), OAuthToken)
@@ -13,6 +14,9 @@ import Decoders exposing (decodeOAuthToken)
 import Model exposing (..)
 import Tokens exposing (makeToken)
 import ClientSecrets exposing (redirectURI, clientID, clientSecret, googleDomain)
+
+
+-- MESSAGES
 
 
 type Msg
@@ -24,19 +28,12 @@ type Msg
     | OAuthTokenResponse (WebData OAuthToken)
 
 
-init : (Model, Cmd Msg)
-init =
-    emptyModel ! []
+-- HELPERS
 
 
 never : Never -> a
 never n =
     never n
-
-
-setCSRFToken : Cmd Msg
-setCSRFToken =
-    Task.perform (\_ -> Debug.crash "Time.now") SetCSRFToken Time.now
 
 
 googleAuthQuery : Model -> List (String, String)
@@ -61,25 +58,63 @@ googleAuthUrl model =
 googleExchangeTokenBody : String -> Http.Body
 googleExchangeTokenBody code =
     let
-        s = "code=" ++ code ++
-            "&client_id=" ++ clientID ++
-            "&client_secret=" ++ clientSecret ++
-            "&redirect_uri=" ++ redirectURI ++
-            "&grant_type=authorization_code"
+        s = String.join "&"
+            [ "code=" ++ code
+            , "client_id=" ++ clientID
+            , "client_secret=" ++ clientSecret
+            , "redirect_uri=" ++ redirectURI
+            , "grant_type=authorization_code"
+            ]
     in
-        Debug.log "body" <| Http.string s
+        Http.string s
+
 
 googleExchangeTokenUrl : String
 googleExchangeTokenUrl = "https://www.googleapis.com/oauth2/v4/token"
 
 
--- Http.post : Decoder value -> String -> Body -> Task Error value
--- RemoteData.asCmd : Task e a -> Cmd (RemoteData e a)
+postFormUrlEncoded : JD.Decoder value -> String -> Http.Body -> Task.Task Http.Error value
+postFormUrlEncoded decoder url body =
+  let request =
+    { verb = "POST"
+    , headers =
+        [ ("Content-Type", "application/x-www-form-urlencoded")
+        -- , ("Origin", "http://localhost:3000")
+        -- , ("Access-Control-Request-Method", "POST")
+        -- , ("Access-Control-Request-Headers", "X-Custom-Header")
+        ]
+    , url = url
+    , body = body
+    }
+
+  in
+      Http.fromJson decoder (Http.send Http.defaultSettings request)
+
+
+-- COMMANDS
+
+
+setCSRFToken : Cmd Msg
+setCSRFToken =
+    Task.perform never SetCSRFToken Time.now
+
+
 exchangeToken : String -> Http.Body -> Cmd Msg
 exchangeToken url body =
-    Http.post decodeOAuthToken url body
+    postFormUrlEncoded decodeOAuthToken url body
         |> RemoteData.asCmd
         |> Cmd.map OAuthTokenResponse
+
+
+-- INIT
+
+
+init : (Model, Cmd Msg)
+init =
+    emptyModel ! []
+
+
+-- UPDATE
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -92,7 +127,10 @@ update msg model =
             ( model, exchangeToken googleExchangeTokenUrl (googleExchangeTokenBody code))
 
         OAuthTokenResponse response ->
-            ( { model | oauthToken = Debug.log "oauth" response }, Cmd.none )
+            let
+                token = Debug.log "oauth" response
+            in
+                update (SetActivePage Login) { model | oauthToken = token }
 
         SetActivePage page ->
             case page of

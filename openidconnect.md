@@ -69,8 +69,9 @@ Make sure you set up your app in the API Console to enable it to use these proto
 2. Send an authentication request to Google
 3. Confirm the anti-forgery state token
 4. Exchange code for access token and ID token
-5. Obtain user information from the ID token
-6. Authenticate the user
+5. Obtain user information from the ID token, or
+6. Obtain user profile information from the access token, and possibly
+7. Authenticate the user
 
 ### 1. Create an anti-forgery state token
 
@@ -127,6 +128,34 @@ client_secret={client_secret}&
 redirect_uri=https://oauth2-login-demo.example.com/code&
 grant_type=authorization_code
 ```
+
+### 6. Obtain user profile information from the access token
+
+To obtain additional profile information about the user, you can use the access token (which your application receives during the authentication flow) with two different endpoints. Unless you are using the plus.login scope, these endpoints provide identical information, just formatted differently.
+
+#### Google Sign-In
+
+If you are using Google Sign-In, retrieve user profile information from the people.get endpoint. To do this, add your access token to the authorization header and make an HTTPS GET request to the following URI:
+
+```
+https://www.googleapis.com/plus/v1/people/me
+```
+
+Use your access token to authenticate the request, as described in people.get. Note that the response does not use the OpenID Connect format.
+
+#### OpenID Connect
+
+If you want to use the OpenID Connect standard and need attributes formatted accordingly:
+
+To be OpenID-compliant, you must include the openid profile scope in your authentication request.
+
+If you want the user’s email address to be included, you can optionally request the openid email scope. To specify both profile and email, you can include the following parameter in your authentication request URI:
+
+```
+scope=openid%20email%20profile
+```
+
+Add your access token to the authorization header and make an HTTPS GET request to the userinfo endpoint, which you should retrieve from the Discovery document using the key userinfo_endpoint. The response includes information about the user, as described in people.getOpenIdConnect. Users may choose to supply or withhold certain fields, so you might not get information for every field to which your scopes request access.
 
 ## Client secrets
 

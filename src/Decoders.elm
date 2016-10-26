@@ -8,8 +8,8 @@ decodeOAuthToken : JD.Decoder OAuthToken
 decodeOAuthToken =
   JD.object5
     OAuthToken
-    ("accessToken" := JD.string)
-    ("idTokenRaw" := JD.string)
-    ("expiresIn" := JD.float)
-    ("tokenType" := JD.string)
-    ("refreshToken" := JD.maybe JD.string)
+    ("access_token" := JD.string)
+    ("id_token" := JD.string)
+    ("expires_in" := JD.int)
+    ("token_type" := JD.string)
+    (JD.maybe ("refresh_token" := JD.string))

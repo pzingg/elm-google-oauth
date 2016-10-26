@@ -14,8 +14,8 @@ type Page
 
 type alias OAuthToken =
     { accessToken : String
-    , idTokenRaw : String
-    , expiresIn : Time
+    , idToken : String
+    , expiresInSeconds : Int
     , tokenType : String
     , refreshToken : Maybe String
     }
