@@ -1,35 +1,38 @@
-# OpenID Connect
-
 Info from https://developers.google.com/identity/protocols/OpenIDConnect
+
+# OpenID Connect
 
 Google's OpenID Connect endpoint is OpenID Certified.
 
 Google's OAuth 2.0 APIs can be used for both authentication and authorization. This document describes our OAuth 2.0 implementation for authentication, which conforms to the OpenID Connect specification, and is OpenID Certified. The documentation found in Using OAuth 2.0 to Access Google APIs also applies to this service. If you want to explore this protocol interactively, we recommend the Google OAuth 2.0 Playground. To get help on Stack Overflow, tag your questions with 'google-oauth'.
 
-Sign in with Google Note: If you want to provide a "Sign-in with Google" button for your website or app, we recommend using Google Sign-In, our sign-in client library that is built on the OpenID Connect protocol and provides OpenID Connect formatted ID Tokens.
-Setting up OAuth 2.0
+    Note: If you want to provide a "Sign-in with Google" button for your website or app, we recommend using Google Sign-In, our sign-in client library that is built on the OpenID Connect protocol and provides OpenID Connect formatted ID Tokens.
+
+## Setting up OAuth 2.0
 
 Before your application can use Google's OAuth 2.0 authentication system for user login, you must set up a project in the Google API Console to obtain OAuth 2.0 credentials, set a redirect URI, and (optionally) customize the branding information that your users see on the user-consent screen. You can also use the API Console to create a service account, enable billing, set up filtering, and do other tasks. For more details, see the Google API Console Help.
 
-## Obtain OAuth 2.0 credentials
+### Obtain OAuth 2.0 credentials
 
 You need OAuth 2.0 credentials, including a client ID and client secret, to authenticate users and gain access to Google's APIs.
 
 To find your project's client ID and client secret, do the following:
 
-Select an existing OAuth 2.0 credential or open the Credentials page.
-If you haven't done so already, create your project's OAuth 2.0 credentials by clicking Create credentials > OAuth client ID, and providing the information needed to create the credentials.
-Look for the Client ID in the OAuth 2.0 client IDs section. For details, click the client ID.
-Set a redirect URI
+1. Select an existing OAuth 2.0 credential or open the Credentials page.
+2. If you haven't done so already, create your project's OAuth 2.0 credentials by clicking Create credentials > OAuth client ID, and providing the information needed to create the credentials.
+3. Look for the Client ID in the OAuth 2.0 client IDs section. For details, click the client ID.
+
+### Set a redirect URI
 
 The redirect URI that you set in the API Console determines where Google sends responses to your authentication requests.
 
 To find the redirect URIs for your OAuth 2.0 credentials, do the following:
 
-Open the Credentials page in the API Console.
-If you haven't done so already, create your OAuth 2.0 credentials by clicking Create credentials > OAuth client ID.
-After you create your credentials, view or edit the redirect URLs by clicking the client ID (for a web application) in the OAuth 2.0 client IDs section.
-Customize the user consent screen
+1. Open the Credentials page in the API Console.
+2. If you haven't done so already, create your OAuth 2.0 credentials by clicking Create credentials > OAuth client ID.
+3. After you create your credentials, view or edit the redirect URLs by clicking the client ID (for a web application) in the OAuth 2.0 client IDs section.
+
+### Customize the user consent screen
 
 For your users, the OAuth 2.0 authentication experience includes a consent screen that describes the information that the user is releasing and the terms that apply. For example, when the user logs in, they might be asked to give your app access to their email address and basic account information. You request access to this information using the scope parameter, which your app includes in its authentication request. You can also use scopes to request access to other Google APIs.
 
@@ -37,18 +40,20 @@ The user consent screen also presents branding information such as your product 
 
 To set up your project's consent screen, do the following:
 
-Open the Consent Screen page in the Google API Console. If prompted, select a project or create a new one.
-Fill out the form and click Save.
+1. Open the Consent Screen page in the Google API Console. If prompted, select a project or create a new one.
+2. Fill out the form and click Save.
+
 The following consent dialog shows what a user would see when a combination of OAuth 2.0 and Google Drive scopes are present in the request. (This generic dialog was generated using the Google OAuth 2.0 Playground, so it does not include branding information that would be set in the API Console.)
 
-## Accessing the service
+### Accessing the service
 
 Google and third parties provide libraries that you can use to take care of many of the implementation details of authenticating users and gaining access to Google APIs. Examples include Google Sign-In and the Google client libraries, which are available for a variety of platforms.
 
-Note: Given the security implications of getting the implementation correct, we strongly encourage you to take advantage of a pre-written library or service. Authenticating users properly is important to their and your safety and security, and using well-debugged code written by others is generally a best practice. For more information, see Client libraries.
+    Note: Given the security implications of getting the implementation correct, we strongly encourage you to take advantage of a pre-written library or service. Authenticating users properly is important to their and your safety and security, and using well-debugged code written by others is generally a best practice. For more information, see Client libraries.
+
 If you choose not to use a library, follow the instructions in the remainder of this document, which describes the HTTP request flows that underly the available libraries.
 
-## Authenticating the user
+### Authenticating the user
 
 Authenticating the user involves obtaining an ID token and validating it. ID tokens are a standardized feature of OpenID Connect designed for use in sharing identity assertions on the Internet.
 
@@ -56,7 +61,7 @@ The most commonly used approaches for authenticating a user and obtaining an ID 
 
 This document describes how to perform the server flow for authenticating the user. The implicit flow is significantly more complicated because of security risks in handling and using tokens on the client side. If you need to implement an implicit flow, we highly recommend using Google Sign-In.
 
-## Server flow
+### Server flow
 
 Make sure you set up your app in the API Console to enable it to use these protocols and authenticate your users. When a user tries to log in with Google, you need to:
 
@@ -66,6 +71,38 @@ Make sure you set up your app in the API Console to enable it to use these proto
 4. Exchange code for access token and ID token
 5. Obtain user information from the ID token
 6. Authenticate the user
+
+### 1. Create an anti-forgery state token
+
+See Update.elm and Tokens.elm for a time-seeded 40-character token.  This
+token will be stored in browser Local Storage for the round-trip to Google.
+
+### 2. Send an authentication request to Google
+
+For a basic request, specify the following parameters:
+
+* client_id, which you obtain from the API Console.
+* response_type, which in a basic request should be code. (Read more at response_type.)
+* scope, which in a basic request should be openid email. (Read more at scope.)
+* redirect_uri should be the HTTP endpoint on your server that will receive the response from Google. You specify this URI in the API Console.
+* state should include the value of the anti-forgery unique session token, as well as any other information needed to recover the context when the user returns to your application, e.g., the starting URL. (Read more at state.)
+* login_hint can be the user's email address or the sub string, which is equivalent to the user's Google ID. If you do not provide a login_hint and the user is currently logged in, the consent screen includes a request for approval to release the user’s email address to your app. (Read more at login_hint.)
+* Use the openid.realm if you are migrating an existing application from OpenID 2.0 to OpenID Connect. For details, see Migrating off of OpenID 2.0.
+* Use the hd parameter to optimize the OpenID Connect flow for users of a particular Google Apps for Work domain. (Read more at hd.)
+
+Here is an example of a complete OpenID Connect authentication URI, with line breaks and spaces for readability:
+
+```
+https://accounts.google.com/o/oauth2/v2/auth?
+ client_id=424911365001.apps.googleusercontent.com&
+ response_type=code&
+ scope=openid%20email&
+ redirect_uri=https://oauth2-login-demo.example.com/code&
+ state=security_token%3D138r5719ru3e1%26url%3Dhttps://oauth2-login-demo.example.com/myHome&
+ login_hint=jsmith@example.com&
+ openid.realm=example.com&
+ hd=example.com
+```
 
 ## Client secrets
 

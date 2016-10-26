@@ -1,11 +1,15 @@
-module Update exposing (Msg(..), init, update)
+module Update exposing (Msg(..), init, update, googleAuthUrl)
 
 import Debug
+import Dict
 import Time exposing (Time)
 import Task
+import Navigation
+import Erl
 import Types exposing (Page(..))
 import Model exposing (..)
 import Tokens exposing (makeToken)
+import ClientSecrets exposing (redirectURI, clientID, clientSecret, googleDomain)
 
 
 type Msg
@@ -28,6 +32,25 @@ never n =
 setCSRFToken : Cmd Msg
 setCSRFToken =
     Task.perform (\_ -> Debug.crash "Time.now") SetCSRFToken Time.now
+
+
+googleAuthQuery : Model -> List (String, String)
+googleAuthQuery model =
+    [ ( "client_id", clientID )
+    , ( "response_type", "code" )
+    , ( "scope", "openid email" )
+    , ( "redirect_uri", redirectURI )
+    , ( "state", "security_token=" ++ model.csrfToken )
+    , ( "hd", googleDomain )
+    ]
+
+
+googleAuthUrl : Model -> String
+googleAuthUrl model =
+    let
+        erl = Erl.parse "https://accounts.google.com/o/oauth2/v2/auth"
+    in
+        Erl.toString { erl | query = Dict.fromList (googleAuthQuery model) }
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
