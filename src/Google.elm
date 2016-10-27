@@ -3,7 +3,6 @@ module Google exposing (..)
 
 {-| Hardcoded for now, but could be found from Discovery service
 -}
-
 authorizationEndpoint : String
 authorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth"
 

@@ -1,20 +1,23 @@
 module Update exposing (Msg(..), init, update, googleAuthUrl)
 
 import Debug
+import Dict exposing (Dict)
+import Json.Decode as JD
 import String
-import Dict
 import Time exposing (Time)
 import Task exposing (Task)
-import Http
-import Json.Decode as JD
+
 import Erl
+import Http
+import LocalStorage
 import RemoteData exposing (WebData, RemoteData(..))
-import Types exposing (Page(..), OAuthToken, UserInfo)
-import Decoders exposing (decodeOAuthToken, decodeUserInfo)
-import Model exposing (..)
-import Tokens exposing (makeToken)
+
 import ClientSecrets exposing (redirectURI, clientID, clientSecret, googleDomain)
+import Decoders exposing (decodeOAuthToken, decodeUserInfo)
 import Google
+import Model exposing (..)
+import Tokens exposing (newToken)
+import Types exposing (Page(..), AuthError(..), OAuthToken, UserInfo)
 
 
 -- MESSAGES
@@ -22,11 +25,17 @@ import Google
 
 type Msg
     = SetActivePage Page
-    | SetCSRFToken Time
+    | StoreCSRFToken
+    | ClearCSRFToken
+    | SetCSRFToken (Maybe String)
+    | ValidateCode String String
     | ExchangeOAuthToken String
     | OAuthTokenResponse (WebData OAuthToken)
     | UserInfoResponse (WebData UserInfo)
     | LogOut
+    | NoOp String
+    | StorageFailure LocalStorage.Error
+    | InvalidCode AuthError
 
 
 -- HELPERS
@@ -100,12 +109,57 @@ postFormUrlEncoded decoder url body =
       Http.fromJson decoder (Http.send Http.defaultSettings request)
 
 
+-- TASKS
+
+
+andThen =
+    (flip Task.andThen)
+
+
+fetchCSRFToken : Task LocalStorage.Error (Maybe String)
+fetchCSRFToken =
+    LocalStorage.get "csrfToken"
+
+
+clearCSRFToken : Task LocalStorage.Error String
+clearCSRFToken =
+    LocalStorage.remove "csrfToken"
+        |> andThen (\() -> Task.succeed "csrfToken cleared")
+
+
+storeCSRFToken : Task LocalStorage.Error (Maybe String)
+storeCSRFToken =
+    Time.now
+        |> andThen (\time -> Task.succeed (newToken time))
+        |> andThen (\token -> LocalStorage.set "csrfToken" token)
+        |> andThen (\() -> fetchCSRFToken)
+
+
+validateCSRFToken : String -> String -> Task AuthError String
+validateCSRFToken returnedToken code =
+    Task.onError fetchCSRFToken (\_ -> Task.fail CSRFMissing)
+        |> andThen
+            (\token ->
+                case token of
+                    Just t ->
+                        if t == returnedToken
+                        then
+                            Task.succeed code
+                        else
+                            Task.fail CSRForgery
+
+                    Nothing ->
+                        Task.fail CSRFMissing
+            )
+
+
+
 -- COMMANDS
 
 
-setCSRFToken : Cmd Msg
-setCSRFToken =
-    Task.perform never SetCSRFToken Time.now
+validateCode : String -> String -> Cmd Msg
+validateCode returnedToken code =
+    Task.perform InvalidCode ExchangeOAuthToken (validateCSRFToken returnedToken code)
 
 
 exchangeToken : String -> Cmd Msg
@@ -146,7 +200,7 @@ update msg model =
                 Home ->
                     { model | activePage = page, pageTitle = "Welcome!" } ! []
                 Login ->
-                    ( { model | activePage = page, pageTitle = "Login" }, setCSRFToken )
+                    { model | activePage = page, pageTitle = "Login" } ! []
                 PageNotFound ->
                     { model | activePage = page, pageTitle = "Not Found!" } ! []
                 AccessDenied ->
@@ -154,28 +208,57 @@ update msg model =
                 MyAccount ->
                     { model | activePage = page, pageTitle = "My Account" } ! []
 
-        SetCSRFToken time ->
-            { model | csrfToken = Just (makeToken time) } ! []
+        StoreCSRFToken ->
+            ( model, (Task.perform StorageFailure SetCSRFToken storeCSRFToken) )
+
+        ClearCSRFToken ->
+            ( { model | csrfToken = Nothing }, (Task.perform StorageFailure NoOp clearCSRFToken) )
+
+        SetCSRFToken maybeToken ->
+            { model | csrfToken = maybeToken } ! []
+
+        ValidateCode returnedToken code ->
+            ( model, validateCode returnedToken code )
 
         ExchangeOAuthToken code ->
-            ( model, exchangeToken code )
+            ( { model | csrfToken = Nothing }, exchangeToken code )
 
         OAuthTokenResponse oauthToken ->
-            case oauthToken of
-                Success _ ->
-                    let
-                        ( newModel, _ ) = update (SetActivePage Login) { model | oauthToken = oauthToken }
-                    in
-                        ( newModel, getUserInfo newModel )
-
-                _ ->
-                    { model | oauthToken = oauthToken } ! []
+            let
+                newModel =
+                    { model
+                    | oauthToken = oauthToken
+                    , activePage = Login
+                    , pageTitle = "Login"
+                    }
+            in
+                (newModel, getUserInfo newModel)
 
         UserInfoResponse userInfo ->
             { model | userInfo = userInfo } ! []
 
         LogOut ->
+            { model
+            | oauthToken = NotAsked
+            , userInfo = NotAsked
+            , activePage = Home
+            , pageTitle = "Welcome!"
+            } ! []
+
+        NoOp msg ->
             let
-                ( newModel, _ ) = update (SetActivePage Home) { model | oauthToken = NotAsked, userInfo = NotAsked }
+                m = Debug.log "NoOp" msg
             in
-                newModel ! []
+                model ! []
+
+        StorageFailure error ->
+            let
+                e = Debug.log "StorageFailure" error
+            in
+                model ! []
+
+        InvalidCode error ->
+            let
+                e = Debug.log "InvalidCode" error
+            in
+                model ! []

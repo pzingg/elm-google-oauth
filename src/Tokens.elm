@@ -1,8 +1,8 @@
-module Tokens exposing (makeToken)
+module Tokens exposing (newToken)
 
-import Random exposing (Generator, initialSeed, step, list, int, map)
 import Basics exposing (truncate)
 import Char
+import Random exposing (Generator, initialSeed, step, list, int, map)
 import String exposing (fromList)
 import Time exposing (Time)
 
@@ -27,8 +27,8 @@ an40 : Generator String
 an40 = string 40 alphanumeric
 
 
-makeToken : Time -> String
-makeToken time =
+newToken : Time -> String
+newToken time =
     let
         seed = initialSeed <| (truncate time)
     in

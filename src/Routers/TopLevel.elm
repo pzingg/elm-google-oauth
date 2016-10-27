@@ -1,16 +1,17 @@
 module Routers.TopLevel exposing (delta2url, location2messages)
 
-import String
 import Dict exposing (Dict)
-import Http
+import String
+
+import Erl
 import Navigation exposing (Location)
 import RouteUrl exposing (HistoryEntry(..), UrlChange)
-import Erl
-import Types exposing (Page(..), AuthError(..))
-import Model exposing (Model)
-import Update exposing (Msg(..))
-import Routers.Utils exposing (hash2list)
+
 import Routers.Authenticated as AR
+import Routers.Utils exposing (hash2list)
+import Model exposing (Model)
+import Types exposing (Page(..), AuthError(..))
+import Update exposing (Msg(..))
 
 
 delta2url : Model -> Model -> Maybe UrlChange
@@ -29,26 +30,6 @@ delta2url previous current =
             Just <| UrlChange NewEntry "/#404"
 
 
-{- TODO check token against Local Storage value:
--}
-validateCrsfToken : String -> Bool
-validateCrsfToken token =
-    True
-
-
-validAuthQuery : Dict String String -> Bool
-validAuthQuery query =
-    case Dict.get "state" query of
-        Just state ->
-            if String.slice 0 5 state == "csrf-"
-            then
-                validateCrsfToken <| String.dropLeft 5 state
-            else
-                False
-
-        Nothing ->
-            False
-
 
 {-| query returned from a successful Google Auth request looks like this:
     state=csrf-Fri6wwWB20SdHyV0IbQEj42j8GM4PXEY3T48MmjE
@@ -58,35 +39,40 @@ validAuthQuery query =
     session_state=d71c8e092aa6049d03ecfaa25b11eef1681b99dd..db44
     prompt=consent
 -}
-decodeAuthCode : Dict String String -> Result AuthError String
+decodeAuthCode : Dict String String -> Result AuthError (String, String)
 decodeAuthCode query =
-    case Dict.get "code" query of
-        Just code ->
-            if validAuthQuery query
-            then
-                Ok code
-            else
-                Err CSRForgery
+    let
+        maybeState = Dict.get "state" query
+        maybeCode = Dict.get "code" query
+    in
+        case (maybeState, maybeCode) of
+            (Just state, Just code) ->
+                if String.slice 0 5 state == "csrf-"
+                then
+                    Ok (String.dropLeft 5 state, code)
+                else
+                    Err CSRForgery
 
-        Nothing ->
-            Err CodeMissing
+            _ ->
+                Err CodeMissing
 
 
 location2messages : Location -> List Msg
 location2messages location =
     let
         erl = Erl.parse location.href
-        authCode = decodeAuthCode erl.query
-        messages =
-            case authCode of
-                Ok code ->
-                    [ ExchangeOAuthToken <| Debug.log "xchg code" code ]
+        query = erl.query
+    in
+        if Dict.isEmpty query
+        then
+            route2messages <| hash2list "#!/" location.hash
+        else
+            case decodeAuthCode query of
+                Ok (csrfToken, code) ->
+                    [ ValidateCode csrfToken code ]
 
                 Err _ ->
                     route2messages <| hash2list "#!/" location.hash
-
-    in
-        messages
 
 
 route2messages : List String -> List Msg
@@ -96,7 +82,9 @@ route2messages route =
                 [ SetActivePage Home ]
 
             "login" :: _ ->
-                [ SetActivePage Login ]
+                [ SetActivePage Login
+                , StoreCSRFToken
+                ]
 
             "app" :: xs ->
                 AR.route2messages xs

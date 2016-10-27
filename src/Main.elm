@@ -1,10 +1,11 @@
 module Main exposing (main)
 
 import RouteUrl exposing (program)
+
 import Model exposing (Model)
+import Routers.TopLevel as TL
 import Update exposing (init, update)
 import View exposing (view)
-import Routers.TopLevel as TL
 
 
 subscriptions : Model -> Sub msg

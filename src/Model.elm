@@ -1,6 +1,7 @@
 module Model exposing (Model, emptyModel)
 
 import RemoteData exposing (WebData, RemoteData(..))
+
 import Types exposing (Page(..), OAuthToken, UserInfo)
 
 

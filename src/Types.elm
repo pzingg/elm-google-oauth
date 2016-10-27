@@ -14,6 +14,7 @@ type Page
 type AuthError
     = CSRForgery
     | CodeMissing
+    | CSRFMissing
 
 
 type alias OAuthToken =

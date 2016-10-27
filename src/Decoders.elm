@@ -1,6 +1,7 @@
 module Decoders exposing(..)
 
 import Json.Decode as JD exposing ((:=))
+
 import Types exposing(OAuthToken, UserInfo)
 
 
