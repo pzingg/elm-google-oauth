@@ -10,9 +10,6 @@ route2messages route =
         [] ->
             []
 
-        "logout" :: [] ->
-            [ SetActivePage Logout ]
-
         "my-account" :: [] ->
             [ SetActivePage MyAccount ]
 

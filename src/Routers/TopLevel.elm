@@ -22,9 +22,6 @@ delta2url previous current =
         Login ->
             Just <| UrlChange NewEntry "/#login"
 
-        Logout ->
-            Just <| UrlChange NewEntry "/#app/logout"
-
         MyAccount ->
             Just <| UrlChange NewEntry "/#app/my-account"
 

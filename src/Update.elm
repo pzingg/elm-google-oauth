@@ -21,8 +21,7 @@ import Google
 
 
 type Msg
-    = LogIn
-    | LogOut
+    = LogOut
     | SetActivePage Page
     | SetCSRFToken Time
     | ExchangeOAuthToken String
@@ -89,20 +88,6 @@ postFormUrlEncoded decoder url body =
       Http.fromJson decoder (Http.send Http.defaultSettings request)
 
 
-getAuthenticated : JD.Decoder value -> String -> String -> Task.Task Http.Error value
-getAuthenticated decoder url accessToken =
-  let request =
-    { verb = "GET"
-    , headers =
-        [ ("Authorization", "Bearer: " ++ accessToken) ]
-    , url = url
-    , body = Http.empty
-    }
-
-  in
-      Http.fromJson decoder (Http.send Http.defaultSettings request)
-
-
 -- COMMANDS
 
 
@@ -122,12 +107,17 @@ getUserInfo : Model -> Cmd Msg
 getUserInfo model =
     case model.oauthToken of
         Success token ->
-            getAuthenticated decodeUserInfo Google.userinfoEndpoint token.accessToken
-                |> RemoteData.asCmd
-                |> Cmd.map UserInfoResponse
+            let
+                url = Google.userinfoEndpoint ++
+                    "?alt=json&access_token=" ++ token.accessToken
+            in
+                Http.get decodeUserInfo url
+                    |> RemoteData.asCmd
+                    |> Cmd.map UserInfoResponse
 
         _ ->
             Cmd.none
+
 
 -- INIT
 
@@ -143,6 +133,12 @@ init =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
+        LogOut ->
+            let
+                ( newModel, _ ) = update (SetActivePage Home) { model | oauthToken = NotAsked, userInfo = NotAsked }
+            in
+                newModel ! []
+
         SetCSRFToken time ->
             { model | csrfToken = makeToken time } ! []
 
@@ -174,8 +170,3 @@ update msg model =
                     { model | activePage = page, pageTitle = "Access Denied!" } ! []
                 MyAccount ->
                     { model | activePage = page, pageTitle = "My Account" } ! []
-                Logout ->
-                    { model | activePage = page, pageTitle = "Logout" } ! []
-
-        _ ->
-            model ! []

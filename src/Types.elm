@@ -9,7 +9,6 @@ type Page
     | PageNotFound
     | AccessDenied
     | MyAccount
-    | Logout
 
 
 type alias OAuthToken =

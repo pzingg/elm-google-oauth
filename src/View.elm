@@ -2,10 +2,11 @@ module View exposing (view)
 
 import Html exposing (Html, text, div, h1, p, a, br, button)
 import Html.Attributes exposing (href)
+import Html.Events exposing (onClick)
 import RemoteData exposing (RemoteData(..))
 import Model exposing (Model)
 import Types exposing (Page(..))
-import Update exposing (Msg, googleAuthUrl)
+import Update exposing (Msg(..), googleAuthUrl)
 
 
 view : Model -> Html Msg
@@ -16,10 +17,19 @@ view model =
                 Login ->
                     case model.oauthToken of
                         Success token ->
-                            [ p [] [ text "You logged in!" ] ]
+                            [ p [] [ text "You are now logged in!" ] ]
 
                         _ ->
-                            [ a [ href (googleAuthUrl model) ] [ text "Login with Google" ] ]
+                            [ a [ href (googleAuthUrl model) ] [ text "Log in with Google" ] ]
+
+                MyAccount ->
+                    case model.userInfo of
+                        Success userInfo ->
+                            [ p [] [ text ("Welcome, " ++ userInfo.email) ] ]
+
+                        _ ->
+                            [ p [] [ text "Ouch! I can't find your user information!" ] ]
+
 
                 _ -> [ p [] [ text "Your Elm App is working!" ] ]
 
@@ -28,7 +38,7 @@ view model =
                 Success token ->
                     [ a [ href "/#" ] [ text "Home" ]
                     , text " "
-                    , a [ href "/#app/logout" ] [ text "Log Out" ]
+                    , a [ onClick LogOut ] [ text "Log Out" ]
                     , text " "
                     , a [ href "/#app/my-account" ] [ text "My Account" ]
                     , text " "
