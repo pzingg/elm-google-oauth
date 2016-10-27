@@ -5,7 +5,6 @@ import Basics exposing (truncate)
 import Char
 import String exposing (fromList)
 import Time exposing (Time)
-import Debug
 
 
 alphanumeric : Generator Char
@@ -32,6 +31,6 @@ makeToken : Time -> String
 makeToken time =
     let
         seed = initialSeed <| (truncate time)
-        token = Debug.log "token" (step an40 seed |> fst)
     in
-        token
+        step an40 seed
+            |> fst

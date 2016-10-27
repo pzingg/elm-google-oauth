@@ -20,7 +20,12 @@ view model =
                             [ p [] [ text "You are now logged in!" ] ]
 
                         _ ->
-                            [ a [ href (googleAuthUrl model) ] [ text "Log in with Google" ] ]
+                            case model.csrfToken of
+                                Just token ->
+                                    [ a [ href (googleAuthUrl token) ] [ text "Log in with Google" ] ]
+
+                                _ ->
+                                    [ p [] [ text "Please refresh page!" ] ]
 
                 MyAccount ->
                     case model.userInfo of

@@ -1,4 +1,4 @@
-module Types exposing (Page(..), OAuthToken, UserInfo)
+module Types exposing (Page(..), AuthError(..), OAuthToken, UserInfo)
 
 import Dict exposing (Dict)
 import Time exposing (Time)
@@ -9,6 +9,11 @@ type Page
     | PageNotFound
     | AccessDenied
     | MyAccount
+
+
+type AuthError
+    = CSRForgery
+    | CodeMissing
 
 
 type alias OAuthToken =

@@ -21,12 +21,12 @@ import Google
 
 
 type Msg
-    = LogOut
-    | SetActivePage Page
+    = SetActivePage Page
     | SetCSRFToken Time
     | ExchangeOAuthToken String
     | OAuthTokenResponse (WebData OAuthToken)
     | UserInfoResponse (WebData UserInfo)
+    | LogOut
 
 
 -- HELPERS
@@ -37,25 +37,20 @@ never n =
     never n
 
 
-googleAuthQuery : Model -> List (String, String)
-googleAuthQuery model =
+googleAuthQuery : String -> List (String, String)
+googleAuthQuery token =
     [ ( "client_id", clientID )
     , ( "response_type", "code" )
     , ( "scope", "openid email profile" )
     , ( "redirect_uri", redirectURI )
-    , ( "state", "csrf " ++ model.csrfToken )
+    , ( "state", "csrf-" ++ token )
     , ( "hd", googleDomain )
     ]
 
 
-googleAuthUrl : Model -> String
-googleAuthUrl model =
-    let
-        erl = Erl.parse Google.authorizationEndpoint
-    in
-        Erl.toString { erl | query = Dict.fromList (googleAuthQuery model) }
-
-
+{-| Google's token exchange endpoint apparently does not accept JSON data,
+    so we create the www-form-urlencoded body here.
+-}
 googleExchangeTokenBody : String -> Http.Body
 googleExchangeTokenBody code =
     let
@@ -70,6 +65,23 @@ googleExchangeTokenBody code =
         Http.string s
 
 
+googleAuthUrl : String -> String
+googleAuthUrl token =
+    let
+        erl = Erl.parse Google.authorizationEndpoint
+    in
+        Erl.toString { erl | query = Dict.fromList (googleAuthQuery token) }
+
+
+userInfoUrl : String ->  String
+userInfoUrl accessToken =
+    Google.userinfoEndpoint ++
+        "?alt=json&access_token=" ++ accessToken
+
+
+{-| Google's token exchange endpoint apparently does not accept JSON data,
+    so we have to change the Content-Type header when we POST.
+-}
 postFormUrlEncoded : JD.Decoder value -> String -> Http.Body -> Task.Task Http.Error value
 postFormUrlEncoded decoder url body =
   let request =
@@ -96,9 +108,9 @@ setCSRFToken =
     Task.perform never SetCSRFToken Time.now
 
 
-exchangeToken : String -> Http.Body -> Cmd Msg
-exchangeToken url body =
-    postFormUrlEncoded decodeOAuthToken url body
+exchangeToken : String -> Cmd Msg
+exchangeToken code =
+    postFormUrlEncoded decodeOAuthToken Google.tokenEndpoint (googleExchangeTokenBody code)
         |> RemoteData.asCmd
         |> Cmd.map OAuthTokenResponse
 
@@ -107,13 +119,9 @@ getUserInfo : Model -> Cmd Msg
 getUserInfo model =
     case model.oauthToken of
         Success token ->
-            let
-                url = Google.userinfoEndpoint ++
-                    "?alt=json&access_token=" ++ token.accessToken
-            in
-                Http.get decodeUserInfo url
-                    |> RemoteData.asCmd
-                    |> Cmd.map UserInfoResponse
+            Http.get decodeUserInfo (userInfoUrl token.accessToken)
+                |> RemoteData.asCmd
+                |> Cmd.map UserInfoResponse
 
         _ ->
             Cmd.none
@@ -133,31 +141,6 @@ init =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
-        LogOut ->
-            let
-                ( newModel, _ ) = update (SetActivePage Home) { model | oauthToken = NotAsked, userInfo = NotAsked }
-            in
-                newModel ! []
-
-        SetCSRFToken time ->
-            { model | csrfToken = makeToken time } ! []
-
-        ExchangeOAuthToken code ->
-            ( model, exchangeToken Google.tokenEndpoint (googleExchangeTokenBody code))
-
-        OAuthTokenResponse response ->
-            let
-                token = Debug.log "oauth" response
-                ( newModel, _ ) = update (SetActivePage Login) { model | oauthToken = token }
-            in
-                ( newModel, getUserInfo newModel )
-
-        UserInfoResponse response ->
-            let
-                userInfo = Debug.log "userinfo" response
-            in
-                { model | userInfo = userInfo } ! []
-
         SetActivePage page ->
             case page of
                 Home ->
@@ -170,3 +153,29 @@ update msg model =
                     { model | activePage = page, pageTitle = "Access Denied!" } ! []
                 MyAccount ->
                     { model | activePage = page, pageTitle = "My Account" } ! []
+
+        SetCSRFToken time ->
+            { model | csrfToken = Just (makeToken time) } ! []
+
+        ExchangeOAuthToken code ->
+            ( model, exchangeToken code )
+
+        OAuthTokenResponse oauthToken ->
+            case oauthToken of
+                Success _ ->
+                    let
+                        ( newModel, _ ) = update (SetActivePage Login) { model | oauthToken = oauthToken }
+                    in
+                        ( newModel, getUserInfo newModel )
+
+                _ ->
+                    { model | oauthToken = oauthToken } ! []
+
+        UserInfoResponse userInfo ->
+            { model | userInfo = userInfo } ! []
+
+        LogOut ->
+            let
+                ( newModel, _ ) = update (SetActivePage Home) { model | oauthToken = NotAsked, userInfo = NotAsked }
+            in
+                newModel ! []

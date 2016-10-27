@@ -7,7 +7,7 @@ import Types exposing (Page(..), OAuthToken, UserInfo)
 type alias Model =
     { activePage : Page
     , pageTitle : String
-    , csrfToken : String
+    , csrfToken : Maybe String
     , oauthToken : WebData OAuthToken
     , userInfo : WebData UserInfo
     }
@@ -17,7 +17,7 @@ emptyModel : Model
 emptyModel =
     { activePage = Home
     , pageTitle = "Welcome!"
-    , csrfToken = ""
+    , csrfToken = Nothing
     , oauthToken = NotAsked
     , userInfo = NotAsked
     }
