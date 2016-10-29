@@ -8,7 +8,7 @@ import Time exposing (Time)
 import Task exposing (Task)
 
 import Erl
-import Http
+import Http exposing (Error(..))
 import LocalStorage
 import RemoteData exposing (WebData, RemoteData(..))
 
@@ -17,7 +17,7 @@ import Decoders exposing (decodeOAuthToken, decodeUserInfo)
 import Google
 import Model exposing (..)
 import Tokens exposing (newToken)
-import Types exposing (Page(..), AuthError(..), OAuthToken, UserInfo)
+import Types exposing (Page(..),  OAuthToken, UserInfo)
 
 
 -- MESSAGES
@@ -28,14 +28,12 @@ type Msg
     | StoreCSRFToken
     | ClearCSRFToken
     | SetCSRFToken (Maybe String)
-    | ValidateCode String String
-    | ExchangeOAuthToken String
+    | ExchangeOAuthToken (Maybe String) (Maybe String)
     | OAuthTokenResponse (WebData OAuthToken)
     | UserInfoResponse (WebData UserInfo)
     | LogOut
     | NoOp String
     | StorageFailure LocalStorage.Error
-    | InvalidCode AuthError
 
 
 -- HELPERS
@@ -135,42 +133,42 @@ storeCSRFToken =
         |> andThen (\() -> fetchCSRFToken)
 
 
-validateCSRFToken : String -> String -> Task AuthError String
-validateCSRFToken returnedToken code =
-    Task.onError fetchCSRFToken (\_ -> Task.fail CSRFMissing)
-        |> andThen
-            (\token ->
-                case token of
-                    Just t ->
-                        if t == returnedToken
-                        then
-                            Task.succeed code
-                        else
-                            Task.fail CSRForgery
+checkOAuthResponse : Maybe String -> Maybe String -> Maybe String -> Task Http.Error String
+checkOAuthResponse localToken returnedToken maybeCode =
+    case (localToken, returnedToken, maybeCode) of
+        (Just tlocal, Just tauth, Just code) ->
+            if tlocal == tauth
+            then
+                Task.succeed code
+            else
+                Task.fail (UnexpectedPayload "Possible CSR forgery")
 
-                    Nothing ->
-                        Task.fail CSRFMissing
-            )
+        (_, _, Nothing) ->
+            Task.fail (UnexpectedPayload "No code returned from auth")
 
+        (_, Nothing, _) ->
+            Task.fail (UnexpectedPayload "No CSRF token returned from auth")
+
+        (Nothing, _, _) ->
+            Task.fail (UnexpectedPayload "No CSRF token in storage")
 
 
 -- COMMANDS
 
 
-validateCode : String -> String -> Cmd Msg
-validateCode returnedToken code =
-    Task.perform InvalidCode ExchangeOAuthToken (validateCSRFToken returnedToken code)
-
-
-exchangeToken : String -> Cmd Msg
-exchangeToken code =
-    postFormUrlEncoded decodeOAuthToken Google.tokenEndpoint (googleExchangeTokenBody code)
+exchangeTokenCmd : Maybe String -> Maybe String -> Cmd Msg
+exchangeTokenCmd returnedToken maybeCode =
+    Task.onError fetchCSRFToken (\_ -> Task.fail (UnexpectedPayload "Local storage not available"))
+        |> andThen (\localToken ->
+            checkOAuthResponse localToken returnedToken maybeCode)
+        |> andThen (\code ->
+            postFormUrlEncoded decodeOAuthToken Google.tokenEndpoint (googleExchangeTokenBody code))
         |> RemoteData.asCmd
         |> Cmd.map OAuthTokenResponse
 
 
-getUserInfo : Model -> Cmd Msg
-getUserInfo model =
+getUserInfoCmd : Model -> Cmd Msg
+getUserInfoCmd model =
     case model.oauthToken of
         Success token ->
             Http.get decodeUserInfo (userInfoUrl token.accessToken)
@@ -217,25 +215,45 @@ update msg model =
         SetCSRFToken maybeToken ->
             { model | csrfToken = maybeToken } ! []
 
-        ValidateCode returnedToken code ->
-            ( model, validateCode returnedToken code )
-
-        ExchangeOAuthToken code ->
-            ( { model | csrfToken = Nothing }, exchangeToken code )
+        ExchangeOAuthToken returnedToken maybeCode ->
+            ( { model | csrfToken = Nothing }, (exchangeTokenCmd returnedToken maybeCode) )
 
         OAuthTokenResponse oauthToken ->
-            let
-                newModel =
-                    { model
-                    | oauthToken = oauthToken
-                    , activePage = Login
-                    , pageTitle = "Login"
-                    }
-            in
-                (newModel, getUserInfo newModel)
+            case oauthToken of
+                Success _ ->
+                    let
+                        newModel =
+                            { model
+                            | oauthToken = oauthToken
+                            , activePage = Login
+                            , pageTitle = "Login"
+                            }
+                    in
+                        (newModel, getUserInfoCmd newModel)
+
+                Failure e ->
+                    let
+                        _ = Debug.log "oauth error" e
+                    in
+                        model ! []
+
+                _ ->
+                    model ! []
 
         UserInfoResponse userInfo ->
-            { model | userInfo = userInfo } ! []
+            case userInfo of
+                Success _ ->
+                    { model | userInfo = userInfo } ! []
+
+                Failure e ->
+                    let
+                        _ = Debug.log "userinfo error" e
+                    in
+                        model ! []
+
+                _ ->
+                    model ! []
+
 
         LogOut ->
             { model
@@ -254,11 +272,5 @@ update msg model =
         StorageFailure error ->
             let
                 e = Debug.log "StorageFailure" error
-            in
-                model ! []
-
-        InvalidCode error ->
-            let
-                e = Debug.log "InvalidCode" error
             in
                 model ! []

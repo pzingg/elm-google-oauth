@@ -12,9 +12,7 @@ type Page
 
 
 type AuthError
-    = CSRForgery
-    | CodeMissing
-    | CSRFMissing
+    = AuthError String
 
 
 type alias OAuthToken =
