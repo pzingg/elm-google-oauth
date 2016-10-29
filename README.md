@@ -13,6 +13,7 @@ An attempt to use some "extended Elm Architecture" practices, namely:
 * https://github.com/krisajenkins/remotedata
 * https://github.com/elm-lang/navigation
 * https://github.com/rgrempel/elm-route-url
+* https://github.com/debois/elm-mdl
 
 ## Related projects found on the web:
 
@@ -21,12 +22,28 @@ An attempt to use some "extended Elm Architecture" practices, namely:
 * Forms, paginated API results: https://github.com/knewter/time-tracker
 * Lenses to access and update data members in deeply nested models: https://github.com/arturopala/elm-monocle
 
+## Built with create-elm-app
+
+See create-elm-app.md for webpack build commands and more information.
+
 ## Common structural practices in Elm:
 
 Define source files that appear in most larger projects:
 
-* Routers/\*.elm
-* Types.elm
+* Main.elm
 * Decoders.elm
 * Model.elm
-* Ports.elm
+* Routers/\*.elm
+* Types.elm
+* Update.elm (includes Msg)
+* View.elm
+* Ports.elm (Elm side of ports)
+* index.js (includes Javascript side of ports)
+
+## Unreleased native modules
+
+* LocalStorage.elm and Native/LocalStorage.js from
+
+## Waiting for updates
+
+*

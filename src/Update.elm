@@ -10,12 +10,14 @@ import Task exposing (Task)
 import Erl
 import Http exposing (Error(..))
 import LocalStorage
+import Material
 import RemoteData exposing (WebData, RemoteData(..))
 
 import ClientSecrets exposing (redirectURI, clientID, clientSecret, googleDomain)
 import Decoders exposing (decodeOAuthToken, decodeUserInfo)
 import Google
 import Model exposing (..)
+import Ports exposing (externalHref)
 import Tokens exposing (newToken)
 import Types exposing (Page(..),  OAuthToken, UserInfo)
 
@@ -31,9 +33,11 @@ type Msg
     | ExchangeOAuthToken (Maybe String) (Maybe String)
     | OAuthTokenResponse (WebData OAuthToken)
     | UserInfoResponse (WebData UserInfo)
+    | LogIntoGoogle String
     | LogOut
-    | NoOp String
     | StorageFailure LocalStorage.Error
+    | Mdl (Material.Msg Msg)
+    | NoOp String
 
 
 -- HELPERS
@@ -254,6 +258,8 @@ update msg model =
                 _ ->
                     model ! []
 
+        LogIntoGoogle token ->
+            model ! [ externalHref (googleAuthUrl token) ]
 
         LogOut ->
             { model
@@ -263,14 +269,17 @@ update msg model =
             , pageTitle = "Welcome!"
             } ! []
 
-        NoOp msg ->
-            let
-                m = Debug.log "NoOp" msg
-            in
-                model ! []
-
         StorageFailure error ->
             let
                 e = Debug.log "StorageFailure" error
+            in
+                model ! []
+
+        Mdl materialMsg ->
+            Material.update materialMsg model
+
+        NoOp msg ->
+            let
+                m = Debug.log "NoOp" msg
             in
                 model ! []
