@@ -6,9 +6,10 @@ import Html.Events exposing (onClick)
 
 import Material
 import Material.Button as Button
-import Material.Color as Color
+import Material.Card as Card exposing (Block)
+import Material.Color as Color exposing (white)
 import Material.Layout as Layout
-import Material.Options as Options
+import Material.Options as Options exposing (css)
 import Material.Scheme
 import RemoteData exposing (RemoteData(..))
 
@@ -25,6 +26,101 @@ isAuthenticated model =
 
         _ ->
             False
+
+
+csrfTokenForLogin : Model -> Maybe String
+csrfTokenForLogin model =
+    case model.activePage of
+        Login ->
+            case model.oauthToken of
+                Success _ ->
+                    Nothing
+
+                _ ->
+                    model.csrfToken
+        _ ->
+            Nothing
+
+
+topLevelLinks : Model -> List (Html Msg)
+topLevelLinks model =
+    [ Layout.link
+        [ Layout.href "/#" ]
+        [ text "Home" ]
+    , Layout.link
+        [ Layout.href "/#login" ]
+        [ text "Log In" ]
+    ]
+
+
+authenticatedLinks : Model -> List (Html Msg)
+authenticatedLinks model =
+    [ Layout.link
+        [ Layout.href "/#" ]
+        [ text "Home" ]
+    , Layout.link
+        [ Layout.onClick LogOut ]
+        [ text "Log Out" ]
+    , Layout.link
+        [ Layout.href "/#app/my-account" ]
+        [ text "My Account" ]
+    , Layout.link
+        [ Layout.href "/#app/no-account" ]
+        [ text "No Account" ]
+    ]
+
+
+cardActions : Model -> List (Block Msg)
+cardActions model =
+    let
+        maybeToken = csrfTokenForLogin model
+    in
+        case maybeToken of
+            Just token ->
+                [
+                    Card.actions
+                        [ Card.border ]
+                        [ Button.render Mdl [ 1 ] model.mdl
+                            [ Button.ripple
+                            , Button.raised
+                            , Button.onClick (LogIntoGoogle token)
+                            -- , Button.link
+                            -- , Options.attr <| href (googleAuthUrl token)
+                            ]
+                            [ text "Log in with Google" ]
+                        ]
+                ]
+
+            Nothing ->
+                []
+
+
+{-| TODO See use of dynamic style in cards demo
+-}
+viewCard : Model -> String -> String -> Html Msg
+viewCard model cardHeadText cardText =
+    let blocks =
+        [ Card.title
+            [ css "background" "url('/static/media/pomegranate.fb8b833e.jpg') center / cover"
+            , css "height" "256px"
+            , css "padding" "0" -- Clear default padding to encompass scrim
+            ]
+            [ Card.head
+                [ Color.text white
+                , Options.scrim 0.75
+                , css "padding" "16px" -- Restore default padding inside scrim
+                , css "width" "100%"
+                ]
+                [ text cardHeadText ]
+            ]
+        , Card.text [] [ text cardText ]
+        ] ++ (cardActions model)
+    in
+      Card.view
+        [ css "width" "100%"
+        , css "margin" "0"
+        ]
+        blocks
 
 
 view : Model -> Html Msg
@@ -57,78 +153,35 @@ viewHeader model =
             ]
 
 
-topLevelLinks : Model -> List (Html Msg)
-topLevelLinks model =
-    [ Layout.link
-        [ Layout.href "/#" ]
-        [ text "Home" ]
-    , Layout.link
-        [ Layout.href "/#login" ]
-        [ text "Log In" ]
-    ]
-
-
-authenticatedLinks : Model -> List (Html Msg)
-authenticatedLinks model =
-    [ Layout.link
-        [ Layout.href "/#" ]
-        [ text "Home" ]
-    , Layout.link
-        [ Layout.onClick LogOut ]
-        [ text "Log Out" ]
-    , Layout.link
-        [ Layout.href "/#app/my-account" ]
-        [ text "My Account" ]
-    , Layout.link
-        [ Layout.href "/#app/no-account" ]
-        [ text "No Account" ]
-    ]
-
-
+{-| TODO compiled = Styles.compile Styles.css
+-}
 viewBody : Model -> Html Msg
 viewBody model =
     let
-        {-
-        compiled =
-            Styles.compile Styles.css
-        -}
-        pageContent =
+        cardHeadText = model.pageTitle
+        cardText =
             case model.activePage of
                 Login ->
                     case model.oauthToken of
                         Success token ->
-                            [ p [] [ text "You are now logged in!" ] ]
+                            "You are now logged in!"
 
                         _ ->
                             case model.csrfToken of
                                 Just token ->
-                                    [
-                                        Button.render Mdl [ 1 ] model.mdl
-                                        [ Button.ripple
-                                        , Button.raised
-                                        , Button.onClick (LogIntoGoogle token)
-                                        -- , Button.link
-                                        -- , Options.attr <| href (googleAuthUrl token)
-                                        ]
-                                        [ text "Log in with Google" ]
-                                    ]
+                                    "Ready to log in, just click the button."
 
                                 _ ->
-                                    [ p [] [ text "Please refresh page!" ] ]
+                                    "Not ready to log in, please refresh page!"
 
                 MyAccount ->
                     case model.userInfo of
                         Success userInfo ->
-                            [ p [] [ text ("Welcome, " ++ userInfo.email) ] ]
+                            "Welcome, " ++ userInfo.email
 
                         _ ->
-                            [ p [] [ text "Ouch! I can't find your user information!" ] ]
+                            "Ouch! I can't find your user information!"
 
-
-                _ -> [ p [] [ text "Your Elm App is working!" ] ]
+                _ -> "Your Elm App is working!"
     in
-        div []
-            (
-                [ h1 [] [ text model.pageTitle ] ]
-                ++ pageContent
-            )
+        viewCard model cardHeadText cardText

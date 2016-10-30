@@ -1,6 +1,6 @@
 {
-    "version": "1.0.0",
-    "summary": "helpful summary of your project, less than 80 characters",
+    "version": "1.0.1",
+    "summary": "Google OAuth Demo, with elm-mdl styling",
     "repository": "https://github.com/pzingg/elm-google-oauth.git",
     "license": "BSD3",
     "source-directories": [

@@ -1,4 +1,5 @@
 require('./main.css');
+require("./pomegranate.jpg");
 
 var Elm = require('./Main.elm');
 
